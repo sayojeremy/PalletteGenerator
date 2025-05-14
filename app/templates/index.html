@@ -1,10 +1,130 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Palette generator</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <title>Color Palette Generator</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome for icons -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('main.static', filename='styles.css') }}">
+
 </head>
 <body>
-<p> Welcome</p>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg py-3">
+        <div class="container-fluid px-4">
+            <a class="navbar-brand logo" href="#">
+                <i class="fas fa-palette me-2"></i>Color Palette Generator
+            </a>
+            <div class="d-flex align-items-center">
+                <button class="btn btn-sm btn-outline-primary">About</button>
+                <button class="btn btn-sm btn-outline-secondary ms-2">Help</button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="main-container">
+        <div class="app-card">
+            <div class="content-area">
+                <!-- Image Column -->
+                <div class="image-container">
+                    <div class="section-title">
+                        <i class="fas fa-image"></i>Source Image
+                    </div>
+                    <div class="image-wrapper">
+                        <img src="{{ uploaded_image if uploaded_image else url_for('main.static', filename='demo.jpg') }}"
+                             alt="Source image for color palette"
+                             class="palette-image">
+                    </div>
+                </div>
+
+                <!-- Color Palette Column -->
+                <div class="palette-container">
+                    <div class="section-title">
+                        <i class="fas fa-swatchbook"></i>Color Palette
+                    </div>
+                    <div class="table-container">
+                        <table class="color-table">
+                            <thead>
+                                <tr>
+                                    <th>Swatch</th>
+                                    <th>Hex Code</th>
+                                    <th>Percentage</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for color in color_data %}
+                                <tr>
+                                    <td>
+                                        <div class="color-swatch" style="background-color: {{ color.hex }};"></div>
+                                    </td>
+                                    <td>
+                                        <span class="hex-code">{{ color.hex }}</span>
+                                        <button class="hex-copy-btn" title="Copy hex code">
+                                            <i class="far fa-copy"></i>
+                                        </button>
+                                    </td>
+                                    <td>
+                                        <span class="percentage-badge">{{ color.percent }}%</span>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Upload Area -->
+            <div class="upload-area">
+                <form action="{{ url_for('main.home') }}" method="POST" enctype="multipart/form-data" class="d-flex align-items-center">
+                    <div class="file-input-wrapper me-3">
+                        <div class="custom-file-label">
+                            <i class="fas fa-upload me-2"></i>Choose Image
+                        </div>
+                        <input type="file" id="file_upload" name="file" accept="image/*" class="form-control">
+                    </div>
+                    <button type="submit" class="upload-btn btn btn-primary">
+                        <i class="fas fa-magic me-2"></i>Generate Palette
+                    </button>
+                    <div class="ms-auto text-muted">
+                        <small>Supported formats: JPG, PNG, WEBP</small>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap & Custom JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Display filename when selected
+        document.getElementById('file_upload').addEventListener('change', function() {
+            const fileName = this.files[0] ? this.files[0].name : 'Choose Image';
+            const fileLabel = document.querySelector('.custom-file-label');
+            fileLabel.innerHTML = '<i class="fas fa-file-image me-2"></i>' + fileName;
+        });
+
+        // Copy hex code functionality
+        document.querySelectorAll('.hex-copy-btn').forEach(button => {
+            button.addEventListener('click', function() {
+                const hexCode = this.previousElementSibling.textContent;
+                navigator.clipboard.writeText(hexCode);
+
+                // Show feedback
+                const originalIcon = this.innerHTML;
+                this.innerHTML = '<i class="fas fa-check"></i>';
+                setTimeout(() => {
+                    this.innerHTML = originalIcon;
+                }, 1000);
+            });
+        });
+    </script>
 </body>
 </html>
