@@ -1,6 +1,8 @@
 
-from flask import render_template, request, send_file, Response, redirect, url_for
+from flask import render_template, request, send_file, Response, redirect, url_for, jsonify
 from . import main
+from app.models import User
+from .. import db
 import os
 from flask import current_app
 import requests
@@ -9,6 +11,16 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.cluster import MiniBatchKMeans
 from collections import Counter
+from flask_wtf import FlaskForm
+from wtforms import StringField ,SubmitField, PasswordField
+from wtforms.validators import DataRequired
+from werkzeug.security import generate_password_hash, check_password_hash
+
+# Create a form to login existing users
+class LoginForm(FlaskForm):
+    phone_no = StringField("Phone Number", validators=[DataRequired()])
+    password = PasswordField("Password", validators=[DataRequired()])
+    submit = SubmitField("Let Me In!")
 
 @main.route("/", methods = ["POST", "GET"])
 def home():
@@ -83,3 +95,27 @@ def home():
             "percent": round(percent, 2)
         })
     return render_template("index.html", color_data=color_data)
+
+@main.route("/registration", methods= ["POST", "GET"])
+def registration():
+    form = LoginForm()
+    if form.validate_on_submit():
+        phone_no = form.phone_no.data
+        password = form.password.data
+        if not phone_no or not password:
+            return jsonify({'error': 'Name and password required'}), 400
+
+        existing_user = db.session.execute(db.select(User).where(User.phone_no == phone_no)).scalar()
+        if existing_user:
+            return jsonify({'error': 'User already exists'}), 409
+
+        hashed_pw = generate_password_hash(password, method='pbkdf2:sha256', salt_length=8)
+        new_user = User(phone_no=phone_no,
+                        password=hashed_pw)
+        db.session.add(new_user)
+        db.session.commit()
+
+        token = 123
+        return jsonify({'message': 'User registered', 'token': token})
+
+    return  render_template("registration.html", form= form)
