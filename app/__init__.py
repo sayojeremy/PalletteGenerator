@@ -1,7 +1,8 @@
 import os
-from flask import Flask
+from flask import Flask, jsonify, request
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import DeclarativeBase
+
 
 # Base class for model_class
 class Base(DeclarativeBase):
@@ -26,6 +27,7 @@ def create_app():
     app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{db_path}"
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False  # Optional: Disable modification tracking
     app.config["SECRET_KEY"] = "RTY4676E7784883G7E"
+    app.config['MAX_CONTENT_LENGTH'] = 4 * 1024 * 1024  # 4MB max upload
     db.init_app(app)
 
 

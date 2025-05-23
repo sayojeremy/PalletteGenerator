@@ -15,6 +15,52 @@ from flask_wtf import FlaskForm
 from wtforms import StringField ,SubmitField, PasswordField
 from wtforms.validators import DataRequired
 from werkzeug.security import generate_password_hash, check_password_hash
+from io import BytesIO
+
+import jwt
+from datetime import datetime, timedelta
+from functools import wraps
+
+# === Token Helpers ===
+
+def create_token(user_id):
+    payload = {
+        'user_id': user_id,
+        'exp': datetime.utcnow() + timedelta(hours=1)
+    }
+    token = jwt.encode(payload, current_app.config['SECRET_KEY'], algorithm='HS256')
+    return token
+
+def verify_token(token):
+    try:
+        payload = jwt.decode(token, current_app.config['SECRET_KEY'], algorithms=['HS256'])
+        return payload['user_id']
+    except jwt.ExpiredSignatureError:
+        return None
+    except jwt.InvalidTokenError:
+        return None
+
+# === Decorator to protect endpoints ===
+
+def token_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        token = None
+        auth_header = request.headers.get('Authorization')
+        if auth_header and auth_header.startswith('Bearer '):
+            token = auth_header.split(' ')[1]
+
+        if not token:
+            return jsonify({'error': 'Token is missing'}), 401
+
+        user_id = verify_token(token)
+        if not user_id:
+            return jsonify({'error': 'Invalid or expired token'}), 401
+
+        request.user_id = user_id
+        return f(*args, **kwargs)
+    return decorated
+
 
 # Create a form to login existing users
 class LoginForm(FlaskForm):
@@ -22,8 +68,11 @@ class LoginForm(FlaskForm):
     password = PasswordField("Password", validators=[DataRequired()])
     submit = SubmitField("Let Me In!")
 
+file_path = ""
+
 @main.route("/", methods = ["POST", "GET"])
 def home():
+    global file_path
     if request.method == "POST":
         # logic to upload files.
         if 'file' not in request.files:
@@ -32,6 +81,7 @@ def home():
         if file.filename == '':
             return "No selected file"
         file_path = os.path.join(current_app.config['UPLOAD_FOLDER'], file.filename)
+        print(file_path)
         file.save(file_path)
 
         # Convert to relative URL so frontend can load it
@@ -96,6 +146,48 @@ def home():
         })
     return render_template("index.html", color_data=color_data)
 
+@main.route("/api", methods= ["POST"])
+@token_required
+def api():
+    # Check if file is part of the request
+    if 'file' not in request.files:
+        return jsonify({"error": "No file uploaded"}), 400
+
+    file = request.files['file']
+
+    if file.filename == '':
+        return jsonify({"error": "Empty filename"}), 400
+
+    # Open image directly from memory using BytesIO
+    img = Image.open(BytesIO(file.read()))
+    img_small = img.resize((img.width // 4, img.height // 4))  # Downsample
+    pixels = np.array(img_small).reshape(-1, 3)
+
+    # Step 2: Convert to NumPy
+    pixels = np.array(img_small).reshape(-1, 3)
+
+    # Step 3: Apply faster clustering
+    k = 10
+    kmeans = MiniBatchKMeans(n_clusters=k, random_state=0, batch_size=1000)
+    kmeans.fit(pixels)
+
+    # Step 4: Analyze results
+    counts = Counter(kmeans.labels_)
+    total_pixels = len(kmeans.labels_)
+    # Print clusters sorted from most to least dominant
+    color_data = []
+
+    for cluster_idx, count in sorted(counts.items(), key=lambda x: x[1], reverse=True):
+        percent = (count / total_pixels) * 100
+        color = kmeans.cluster_centers_[cluster_idx].astype(np.uint8)
+        hex_color = '#{:02x}{:02x}{:02x}'.format(*color)
+        color_data.append({
+            "hex": hex_color,
+            "percent": round(percent, 2)
+        })
+    return jsonify(color_data)
+
+
 @main.route("/registration", methods= ["POST", "GET"])
 def registration():
     form = LoginForm()
@@ -115,7 +207,7 @@ def registration():
         db.session.add(new_user)
         db.session.commit()
 
-        token = 123
+        token = create_token(new_user.id)
         return jsonify({'message': 'User registered', 'token': token})
 
     return  render_template("registration.html", form= form)
